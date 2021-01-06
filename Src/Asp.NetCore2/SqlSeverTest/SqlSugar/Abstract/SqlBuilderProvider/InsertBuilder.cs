@@ -5,7 +5,7 @@ using System.Linq;
 using System.Linq.Expressions;
 namespace SqlSugar
 {
-    public class InsertBuilder : IDMLBuilder
+    public partial class InsertBuilder : IDMLBuilder
     {
         #region  Init
         public InsertBuilder()
@@ -162,7 +162,12 @@ namespace SqlSugar
                     pageIndex++;
                     batchInsetrSql.Append("\r\n;\r\n");
                 }
-                return batchInsetrSql.ToString();
+                var result= batchInsetrSql.ToString();
+                if (this.Context.CurrentConnectionConfig.DbType == DbType.SqlServer)
+                {
+                    result += "select @@identity;";
+                }
+                return result;
             }
         }
         public virtual object FormatValue(object value)

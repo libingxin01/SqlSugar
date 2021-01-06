@@ -53,7 +53,7 @@ namespace SqlSugar
         public Guid ContextID { get { return this.Context.ContextID; } set { this.Context.ContextID = value; } }
 
 
-        public MappingTableList MappingTables { get { return _MappingTables; } set {  _MappingTables = value; } }
+        public MappingTableList MappingTables { get { return _MappingTables; } set { _MappingTables = value; } }
         public MappingColumnList MappingColumns { get { return _MappingColumns; } set { _MappingColumns = value; } }
         public IgnoreColumnList IgnoreColumns { get { return _IgnoreColumns; } set { _IgnoreColumns = value; } }
         public IgnoreColumnList IgnoreInsertColumns { get { return _IgnoreInsertColumns; } set { _IgnoreInsertColumns = value; } }
@@ -61,11 +61,6 @@ namespace SqlSugar
         #endregion
 
         #region SimpleClient
-        public SimpleClient GetSimpleClient()
-        {
-            return this.Context.GetSimpleClient();
-        }
-
         public SimpleClient<T> GetSimpleClient<T>() where T : class, new()
         {
             return this.Context.GetSimpleClient<T>();
@@ -302,15 +297,27 @@ namespace SqlSugar
             where T : class, new()
             where T2 : class, new()
         {
-            return this.Context.Queryable(joinQueryable1, joinQueryable2, joinExpression);
+            return this.Context.Queryable(joinQueryable1, joinQueryable2, joinExpression).With(SqlWith.Null);
         }
 
         public ISugarQueryable<T, T2> Queryable<T, T2>(ISugarQueryable<T> joinQueryable1, ISugarQueryable<T2> joinQueryable2, JoinType joinType, Expression<Func<T, T2, bool>> joinExpression)
             where T : class, new()
             where T2 : class, new()
         {
-            return this.Context.Queryable(joinQueryable1, joinQueryable2, joinType, joinExpression);
+            return this.Context.Queryable(joinQueryable1, joinQueryable2, joinType, joinExpression).With(SqlWith.Null);
         }
+
+
+        public ISugarQueryable<T, T2, T3> Queryable<T, T2, T3>(ISugarQueryable<T> joinQueryable1, ISugarQueryable<T2> joinQueryable2, ISugarQueryable<T3> joinQueryable3,
+            JoinType joinType1, Expression<Func<T, T2, T3, bool>> joinExpression1,
+            JoinType joinType2, Expression<Func<T, T2, T3, bool>> joinExpression2)
+      where T : class, new()
+      where T2 : class, new()
+      where T3 : class, new()
+        {
+            return this.Context.Queryable(joinQueryable1, joinQueryable2, joinQueryable3, joinType1, joinExpression1, joinType2, joinExpression2).With(SqlWith.Null);
+        }
+
 
         public ISugarQueryable<T> Queryable<T>()
         {
@@ -532,21 +539,26 @@ namespace SqlSugar
         public IDbFirst DbFirst => this.Context.DbFirst;
         public IDbMaintenance DbMaintenance => this.Context.DbMaintenance;
         public EntityMaintenance EntityMaintenance { get { return this.Context.EntityMaintenance; } set { this.Context.EntityMaintenance = value; } }
-        public QueryFilterProvider QueryFilter { get { return this.Context.QueryFilter; }set { this.Context.QueryFilter = value; } }
+        public QueryFilterProvider QueryFilter { get { return this.Context.QueryFilter; } set { this.Context.QueryFilter = value; } }
         #endregion
 
         #region TenantManager
         public void ChangeDatabase(string configId)
         {
+            var isLog = _Context.Ado.IsEnableLogEvent;
             Check.Exception(!_AllClients.Any(it => it.ConnectionConfig.ConfigId == configId), "ConfigId was not found {0}", configId);
             InitTenant(_AllClients.First(it => it.ConnectionConfig.ConfigId == configId));
             if (this._IsAllTran)
                 this.Ado.BeginTran();
             if (this._IsOpen)
                 this.Open();
+            _Context.Ado.IsEnableLogEvent = isLog;
+            if (_CurrentConnectionConfig.AopEvents==null)
+                _CurrentConnectionConfig.AopEvents = new AopEvents();
         }
         public void ChangeDatabase(Func<ConnectionConfig, bool> changeExpression)
         {
+            var isLog = _Context.Ado.IsEnableLogEvent;
             var allConfigs = _AllClients.Select(it => it.ConnectionConfig);
             Check.Exception(!allConfigs.Any(changeExpression), "changeExpression was not found {0}", changeExpression.ToString());
             InitTenant(_AllClients.First(it => it.ConnectionConfig == allConfigs.First(changeExpression)));
@@ -554,6 +566,9 @@ namespace SqlSugar
                 this.Ado.BeginTran();
             if (this._IsOpen)
                 this.Open();
+            _Context.Ado.IsEnableLogEvent = isLog;
+            if (_CurrentConnectionConfig.AopEvents == null)
+                _CurrentConnectionConfig.AopEvents = new AopEvents();
         }
         public void BeginTran()
         {
@@ -897,6 +912,11 @@ namespace SqlSugar
         #endregion
 
         #region Obsolete
+        [Obsolete("Use GetSimpleClient<T>")]
+        public SimpleClient GetSimpleClient()
+        {
+            return this.Context.GetSimpleClient();
+        }
         [Obsolete("Use EntityMaintenance")]
         public EntityMaintenance EntityProvider { get { return this.Context.EntityProvider; } set { this.Context.EntityProvider = value; } }
         [Obsolete("Use Utilities")]

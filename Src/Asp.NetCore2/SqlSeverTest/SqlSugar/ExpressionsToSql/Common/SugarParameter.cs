@@ -129,7 +129,7 @@ namespace SqlSugar
                 if (this.Value != null)
                     this.Value = this.Value.ToString();
             }
-            else if (type.IsEnum())
+            else if (type!=null&&type.IsEnum())
             {
                 this.DbType = System.Data.DbType.Int64;
             }
@@ -233,5 +233,7 @@ namespace SqlSugar
 
 
         public string TypeName { get; set; }
+        public bool IsJson { get;  set; }
+        public bool IsArray { get;  set; }
     }
 }

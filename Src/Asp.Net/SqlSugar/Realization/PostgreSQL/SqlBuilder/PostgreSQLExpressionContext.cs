@@ -178,26 +178,26 @@ namespace SqlSugar
             var parameter = model.Args[0];
             var parameter2 = model.Args[1];
             var parameter3 = model.Args[2];
-            return string.Format(" (DATE_ADD({1} , INTERVAL {2} {0})) ", parameter3.MemberValue, parameter.MemberName, parameter2.MemberName);
+            return string.Format(" ({1} +  ({2}||'{0}')::INTERVAL) ", parameter3.MemberValue, parameter.MemberName, parameter2.MemberName);
         }
 
         public override string DateAddDay(MethodCallExpressionModel model)
         {
             var parameter = model.Args[0];
             var parameter2 = model.Args[1];
-            return string.Format(" (DATE_ADD({1} INTERVAL {0} day)) ", parameter.MemberName, parameter2.MemberName);
+            return string.Format(" ({0} + ({1}||'day')::INTERVAL) ", parameter.MemberName, parameter2.MemberName);
         }
 
         public override string ToInt32(MethodCallExpressionModel model)
         {
             var parameter = model.Args[0];
-            return string.Format(" CAST({0} AS SIGNED)", parameter.MemberName);
+            return string.Format(" CAST({0} AS INT4)", parameter.MemberName);
         }
 
         public override string ToInt64(MethodCallExpressionModel model)
         {
             var parameter = model.Args[0];
-            return string.Format(" CAST({0} AS SIGNED)", parameter.MemberName);
+            return string.Format(" CAST({0} AS INT8)", parameter.MemberName);
         }
 
         public override string ToString(MethodCallExpressionModel model)
@@ -221,7 +221,7 @@ namespace SqlSugar
         public override string ToBool(MethodCallExpressionModel model)
         {
             var parameter = model.Args[0];
-            return string.Format(" CAST({0} AS SIGNED)", parameter.MemberName);
+            return string.Format(" CAST({0} AS boolean)", parameter.MemberName);
         }
 
         public override string ToDecimal(MethodCallExpressionModel model)
@@ -252,6 +252,11 @@ namespace SqlSugar
         public override string GetRandom()
         {
             return "RANDOM()";
+        }
+
+        public override string EqualTrue(string fieldName)
+        {
+            return "( " + fieldName + "=true )";
         }
     }
 }

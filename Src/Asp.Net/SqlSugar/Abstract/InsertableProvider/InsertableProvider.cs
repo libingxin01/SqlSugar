@@ -228,6 +228,21 @@ namespace SqlSugar
             };
             return this;
         }
+
+        public SqlServerBlueCopy UseSqlServer()
+        {
+            PreToSql();
+            var currentType = this.Context.CurrentConnectionConfig.DbType;
+            Check.Exception(currentType != DbType.SqlServer, "UseSqlServer no support " + currentType);
+            SqlServerBlueCopy result = new SqlServerBlueCopy();
+            result.DbColumnInfoList =this.InsertBuilder.DbColumnInfoList.GroupBy(it => it.TableId).ToList();
+            result.InsertBuilder = this.InsertBuilder;
+            result.Builder = this.SqlBuilder;
+            result.Context = this.Context;
+            result.Inserts=this.InsertObjs;
+            return result;
+        }
+
         public IInsertable<T> EnableDiffLogEvent(object businessData = null)
         {
             Check.Exception(this.InsertObjs.HasValue() && this.InsertObjs.Count() > 1, "DiffLog does not support batch operations");
@@ -237,6 +252,48 @@ namespace SqlSugar
             diffModel.DiffType = DiffType.insert;
             return this;
         }
+
+        public ISubInsertable<T> AddSubList(Expression<Func<T, object>> items)
+        {
+            Check.Exception(GetPrimaryKeys().Count == 0, typeof(T).Name + " need Primary key");
+            Check.Exception(GetPrimaryKeys().Count > 1, typeof(T).Name + "Multiple primary keys are not supported");
+            //Check.Exception(this.InsertObjs.Count() > 1, "SubInserable No Support Insertable(List<T>)");
+            //Check.Exception(items.ToString().Contains(".First().")==false, items.ToString()+ " not supported ");
+            if (this.InsertObjs == null || this.InsertObjs.Count() == 0)
+            {
+                return new SubInsertable<T>();
+            }
+            SubInsertable<T> result = new SubInsertable<T>();
+            result.InsertObjects = this.InsertObjs;
+            result.Context = this.Context;
+            result.SubList = new List<SubInsertTreeExpression>();
+            result.SubList.Add(new SubInsertTreeExpression() { Expression= items });
+            result.InsertBuilder = this.InsertBuilder;
+            result.Pk = GetPrimaryKeys().First();
+            result.Entity = this.EntityInfo;
+            return result;
+        }
+        public ISubInsertable<T> AddSubList(Expression<Func<T, SubInsertTree>> tree)
+        {
+            Check.Exception(GetPrimaryKeys().Count == 0, typeof(T).Name + " need Primary key");
+            Check.Exception(GetPrimaryKeys().Count > 1, typeof(T).Name + "Multiple primary keys are not supported");
+            //Check.Exception(this.InsertObjs.Count() > 1, "SubInserable No Support Insertable(List<T>)");
+            //Check.Exception(items.ToString().Contains(".First().")==false, items.ToString()+ " not supported ");
+            if (this.InsertObjs == null || this.InsertObjs.Count() == 0)
+            {
+                return new SubInsertable<T>();
+            }
+            SubInsertable<T> result = new SubInsertable<T>();
+            result.InsertObjects = this.InsertObjs;
+            result.Context = this.Context;
+            result.SubList = new List<SubInsertTreeExpression>();
+            result.InsertBuilder = this.InsertBuilder;
+            result.Pk = GetPrimaryKeys().First();
+            result.Entity = this.EntityInfo;
+            result.AddSubList(tree);
+            return result;
+        }
+
         #endregion
 
         #region Protected Methods
@@ -339,6 +396,14 @@ namespace SqlSugar
                     {
                         continue;
                     }
+                    if (item.IsJson)
+                    {
+                        paramters.IsJson = true;
+                    }
+                    if (item.IsArray)
+                    {
+                        paramters.IsArray = true;
+                    }
                     this.InsertBuilder.Parameters.Add(paramters);
                 }
             }
@@ -399,6 +464,14 @@ namespace SqlSugar
                     PropertyType = UtilMethods.GetUnderType(column.PropertyInfo),
                     TableId = i
                 };
+                if (column.IsJson)
+                {
+                    columnInfo.IsJson = true;
+                }
+                if (column.IsArray)
+                {
+                    columnInfo.IsArray = true;
+                }
                 if (columnInfo.PropertyType.IsEnum())
                 {
                     columnInfo.Value = Convert.ToInt64(columnInfo.Value);
@@ -568,7 +641,7 @@ namespace SqlSugar
                         DiffLogColumnInfo addItem = new DiffLogColumnInfo();
                         addItem.Value = row[col.ColumnName];
                         addItem.ColumnName = col.ColumnName;
-                        addItem.ColumnDescription = this.EntityInfo.Columns.First(it => it.DbColumnName.Equals(col.ColumnName, StringComparison.CurrentCultureIgnoreCase)).ColumnDescription;
+                        addItem.ColumnDescription = this.EntityInfo.Columns.Where(it=>it.DbColumnName!=null).First(it => it.DbColumnName.Equals(col.ColumnName, StringComparison.CurrentCultureIgnoreCase)).ColumnDescription;
                         item.Columns.Add(addItem);
                     }
                     result.Add(item);

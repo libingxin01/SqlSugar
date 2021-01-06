@@ -30,7 +30,7 @@ namespace OrmTest
             Console.WriteLine("#### Examples Start ####");
             var db = GetInstance();
             var dbTime = db.GetDate();
-            var getAll = db.Queryable<Order>().ToList();
+            var getAll = db.Queryable<Order>().Where(it=> SqlFunc.EqualsNull(it.Name,null)).ToList();
             var getOrderBy = db.Queryable<Order>().OrderBy(it => it.Name,OrderByType.Desc).ToList();
             var getOrderBy2 = db.Queryable<Order>().OrderBy(it => it.Id).OrderBy(it => it.Name, OrderByType.Desc).ToList();
             var getOrderBy3 = db.Queryable<Order>().OrderBy(it =>new { it.Name,it.Id}).ToList();
@@ -42,6 +42,9 @@ namespace OrmTest
             var getByWhere2 = db.Queryable<Order>().Where(it => it.Id == DateTime.Now.Year).ToList();
             var getByFuns = db.Queryable<Order>().Where(it => SqlFunc.IsNullOrEmpty(it.Name)).ToList();
             var getByFuns2 = db.Queryable<Order>().GroupBy(it => it.Name).Select(it => SqlFunc.AggregateDistinctCount(it.Price)).ToList();
+            var getDicionary = db.Queryable<Order>().ToDictionary(it => it.Id, it => it.Name);
+            var getDicionaryList = db.Queryable<Order>().ToDictionaryList();
+            var getTest = db.Queryable<Order>().Where(it =>string.IsNullOrWhiteSpace( it.Name)).ToList();
             Console.WriteLine("#### Examples End ####");
         }
 
@@ -52,6 +55,12 @@ namespace OrmTest
             var db = GetInstance();
             List<Order> list = db.Queryable<Order>().ToList();
 
+            var x2=db.Ado.SqlQueryAsync<Order>("select * from [Order] ");
+            x2.Wait();
+            var x22 = db.Ado.GetScalarAsync("select * from [Order] ");
+            x22.Wait();
+            var x222 = db.Ado.ExecuteCommandAsync("select * from [Order] ");
+            x222.Wait();
             Order item = db.Queryable<Order>().First(it => it.Id == 1);
 
             DataTable dataTable = db.Queryable<Order>().Select(it => it.Id).ToDataTable();
@@ -113,7 +122,13 @@ namespace OrmTest
                 customName2 = SqlFunc.Subqueryable<Custom>().Where("it.CustomId = id").Where(s => true).Select(s => s.Name)
             }).ToList();
 
-            var list2 = db.Queryable<Order>().Where(it => SqlFunc.Subqueryable<OrderItem>().Where(i => i.OrderId == it.Id).Any()).ToList();
+            var list2 = db.Queryable<Order>().Where(it =>
+            SqlFunc.Subqueryable<OrderItem>() 
+             .LeftJoin<OrderItem>((i,y)=>i.ItemId==y.ItemId)
+             .InnerJoin<OrderItem>((i,z) => i.ItemId == z.ItemId)
+             .Where(i=>i.ItemId==1)
+              .Any()
+            ).ToList();
 
             Console.WriteLine("#### Subquery End ####");
         }
@@ -124,7 +139,16 @@ namespace OrmTest
             Console.WriteLine("#### SqlFunc Start ####");
             var db = GetInstance();
             var index= db.Queryable<Order>().Select(it => SqlFunc.CharIndex("a", "cccacc")).First();
+            var list = db.Queryable<Order>().Select(it =>new ViewOrder()
+            {
 
+                Id = SqlFunc.AggregateSum(SqlFunc.IF(it.Id > 0).Return(1).End(0))
+            }).ToList();
+            var list2 = db.Queryable<Order>().Where(it=>it.CreateTime.Date==it.CreateTime).Select(it => new
+            {
+                date = it.CreateTime.Date,
+                datetime = DateTime.Now.Date
+            }).ToList();
             Console.WriteLine("#### SqlFunc  End ####");
         }
 
@@ -153,6 +177,11 @@ namespace OrmTest
                                      //Child=(select * from parent where ParentId=it.id)
                                      .Mapper(it => it.Child, it => it.Id, it => it.Parent.ParentId)
                                      .ToList();
+
+
+            db.Insertable(new Tree() { Id = 222, Name = "child11", ParentId = 11 }).ExecuteCommand();
+            var tree = db.Queryable<Tree>().ToTree(it=>it.Child,it=>it.ParentId,0);
+      
             //one to one
             var list2 = db.Queryable<OrderItemInfo>().Mapper(it => it.Order, it => it.OrderId).ToList();
 
@@ -221,6 +250,23 @@ namespace OrmTest
 
             var query2 = db.Queryable<Custom>();
             var list3=db.Queryable(query1, query2,JoinType.Left, (p1, p2) => p1.CustomId == p2.Id).Select<ViewOrder>().ToList();
+
+
+            var query3 = db.Union(
+                                   db.Queryable<Order>().Where(it => it.Name.Contains("a")), 
+                                   db.Queryable<Order>().Where(it => it.Name.Contains("b"))
+                                 ).ToList();
+
+
+
+            var query4 = db.Queryable<Order,OrderItem,Custom>(
+                              db.Queryable<Order>().Where(it => it.Name.Contains("a")),
+                              db.Queryable<OrderItem>().Where(it => it.CreateTime>DateTime.Now),
+                              db.Queryable<Custom>().Where(it => it.Name.Contains("b")),
+                              JoinType.Left, (o, i, c) => o.Id==i.OrderId,
+                              JoinType.Left,(o,i,c)=>o.CustomId==c.Id
+
+                            ).Select(o=>o).ToList();
 
             Console.WriteLine("#### Join Table End ####");
         }

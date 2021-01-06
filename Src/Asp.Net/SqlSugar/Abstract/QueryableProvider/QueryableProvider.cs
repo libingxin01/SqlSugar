@@ -90,7 +90,10 @@ namespace SqlSugar
         }
         public virtual ISugarQueryable<T> With(string withString)
         {
-            QueryBuilder.TableWithString = withString;
+            if (this.Context.CurrentConnectionConfig.DbType == DbType.SqlServer)
+            {
+                QueryBuilder.TableWithString = withString;
+            }
             return this;
         }
 
@@ -112,6 +115,12 @@ namespace SqlSugar
         }
         public ISugarQueryable<T> Mapper<TObject>(Expression<Func<T, TObject>> mapperObject, Expression<Func<T, object>> mainField, Expression<Func<T, object>> childField)
         {
+            Check.Exception(mapperObject.ReturnType.Name == "IList`1", "Mapper no support IList , Use List<T>");
+            if (CallContext.MapperExpression.Value == null)
+            {
+                CallContext.MapperExpression.Value = new List<MapperExpression>();
+            }
+            CallContext.MapperExpression.Value.Add(new MapperExpression() { SqlBuilder = SqlBuilder, QueryBuilder = this.QueryBuilder, Type = MapperExpressionType.oneToOne, FillExpression = mapperObject, MappingField1Expression = mainField, MappingField2Expression=childField, Context = this.Context });
             return _Mapper<TObject>(mapperObject, mainField, childField);
         }
         public ISugarQueryable<T> Mapper<TObject>(Expression<Func<T, List<TObject>>> mapperObject, Expression<Func<T, object>> mainField, Expression<Func<T, object>> childField)
@@ -124,6 +133,11 @@ namespace SqlSugar
         }
         public virtual ISugarQueryable<T> Mapper<TObject>(Expression<Func<T, TObject>> mapperObject, Expression<Func<T, object>> mapperField)
         {
+            if (CallContext.MapperExpression.Value == null)
+            {
+                CallContext.MapperExpression.Value = new List<MapperExpression>();
+            }
+            CallContext.MapperExpression.Value.Add(new MapperExpression() { SqlBuilder= SqlBuilder, QueryBuilder = this.QueryBuilder, Type=MapperExpressionType.oneToOne, FillExpression=mapperObject, MappingField1Expression= mapperField,Context=this.Context });
             return _Mapper<TObject>(mapperObject, mapperField);
         }
 
@@ -713,6 +727,23 @@ namespace SqlSugar
         {
             return this.Context.Utilities.SerializeObject(this.ToPageList(pageIndex, pageSize, ref totalNumber), typeof(T));
         }
+        public List<T> ToTree(Expression<Func<T, IEnumerable<object>>> childListExpression, Expression<Func<T, object>> parentIdExpression, object rootValue)
+        {
+            var entity = this.Context.EntityMaintenance.GetEntityInfo<T>();
+            Check.Exception(entity.Columns.Where(it => it.IsPrimarykey).Count() == 0, "No Primary key");
+            var pk = entity.Columns.Where(it => it.IsPrimarykey).First().PropertyName;
+            var list = this.ToList();
+            return GetTreeRoot(childListExpression, parentIdExpression, pk, list, rootValue);
+        }
+
+        public async Task<List<T>> ToTreeAsync(Expression<Func<T, IEnumerable<object>>> childListExpression, Expression<Func<T, object>> parentIdExpression, object rootValue)
+        {
+            var entity = this.Context.EntityMaintenance.GetEntityInfo<T>();
+            Check.Exception(entity.Columns.Where(it => it.IsPrimarykey).Count() == 0, "No Primary key");
+            var pk = entity.Columns.Where(it => it.IsPrimarykey).First().PropertyName;
+            var list =await this.ToListAsync();
+            return GetTreeRoot(childListExpression, parentIdExpression, pk, list,rootValue);
+        }
 
         public virtual DataTable ToDataTable()
         {
@@ -760,6 +791,38 @@ namespace SqlSugar
             var result = ToDataTablePage(pageIndex, pageSize, ref totalNumber);
             totalPage = (totalNumber + pageSize - 1) / pageSize;
             return result;
+        }
+
+        public Dictionary<string, object> ToDictionary(Expression<Func<T, object>> key, Expression<Func<T, object>> value)
+        {
+            var keyName = QueryBuilder.GetExpressionValue(key, ResolveExpressType.FieldSingle).GetResultString();
+            var valueName = QueryBuilder.GetExpressionValue(value, ResolveExpressType.FieldSingle).GetResultString();
+            var result = this.Select<KeyValuePair<string, object>>(keyName + "," + valueName).ToList().ToDictionary(it => it.Key.ObjToString(), it => it.Value);
+            return result;
+        }
+        public async Task<Dictionary<string, object>> ToDictionaryAsync(Expression<Func<T, object>> key, Expression<Func<T, object>> value)
+        {
+            var keyName = QueryBuilder.GetExpressionValue(key, ResolveExpressType.FieldSingle);
+            var valueName = QueryBuilder.GetExpressionValue(value, ResolveExpressType.FieldSingle);
+            var list = await this.Select<KeyValuePair<string, object>>(keyName + "," + valueName).ToListAsync();
+            var result =list.ToDictionary(it => it.Key.ObjToString(), it => it.Value);
+            return result;
+        }
+        public List<Dictionary<string, object>> ToDictionaryList()
+        {
+            var list = this.ToList();
+            if (list == null)
+                return null;
+            else
+                return this.Context.Utilities.DeserializeObject<List<Dictionary<string, object>>>(this.Context.Utilities.SerializeObject(list));
+        }
+        public async Task<List<Dictionary<string, object>>> ToDictionaryListAsync()
+        {
+            var list =await this.ToListAsync();
+            if (list == null)
+                return null;
+            else
+                return this.Context.Utilities.DeserializeObject<List<Dictionary<string, object>>>(this.Context.Utilities.SerializeObject(list));
         }
 
         public virtual List<T> ToList()
@@ -1020,7 +1083,9 @@ namespace SqlSugar
         }
         public async Task<List<T>> ToPageListAsync(int pageIndex, int pageSize, RefAsync<int> totalNumber)
         {
+            var oldMapping = this.Context.MappingTables;
             totalNumber.Value = await this.Clone().CountAsync();
+            this.Context.MappingTables = oldMapping;
             return await this.Clone().ToPageListAsync(pageIndex, pageSize);
         }
         public async Task<string> ToJsonAsync()
@@ -1045,7 +1110,9 @@ namespace SqlSugar
         }
         public async Task<string> ToJsonPageAsync(int pageIndex, int pageSize, RefAsync<int> totalNumber)
         {
+            var oldMapping = this.Context.MappingTables;
             totalNumber.Value = await this.Clone().CountAsync();
+            this.Context.MappingTables = oldMapping;
             return await this.Clone().ToJsonPageAsync(pageIndex, pageSize);
         }
         public async Task<DataTable> ToDataTableAsync()
@@ -1072,13 +1139,72 @@ namespace SqlSugar
         }
         public async Task<DataTable> ToDataTablePageAsync(int pageIndex, int pageSize, RefAsync<int> totalNumber)
         {
+            var oldMapping = this.Context.MappingTables;
             totalNumber.Value = await this.Clone().CountAsync();
+            this.Context.MappingTables = oldMapping;
             return await this.Clone().ToDataTablePageAsync(pageIndex, pageSize);
         }
 
         #endregion
 
         #region Private Methods
+        private List<T> GetTreeRoot(Expression<Func<T, IEnumerable<object>>> childListExpression, Expression<Func<T, object>> parentIdExpression, string pk, List<T> list,object rootValue)
+        {
+            var childName = ((childListExpression as LambdaExpression).Body as MemberExpression).Member.Name;
+            var exp = (parentIdExpression as LambdaExpression).Body;
+            if (exp is UnaryExpression)
+            {
+                exp = (exp as UnaryExpression).Operand;
+            }
+            var parentIdName = (exp as MemberExpression).Member.Name;
+            var result = list.Where(it =>
+            {
+
+                var value = it.GetType().GetProperty(parentIdName).GetValue(it);
+                if (rootValue != null)
+                {
+                    return value.ObjToString() == rootValue.ObjToString();
+                }
+                else if (value == null || value.ObjToString() == "" || value.ObjToString() == "0" || value.ObjToString() == Guid.Empty.ToString())
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }).ToList();
+            if (result != null && result.Count > 0)
+            {
+                foreach (var item in result)
+                {
+                    var pkValue = item.GetType().GetProperty(pk).GetValue(item);
+                    item.GetType().GetProperty(childName).SetValue(item, GetTreeChildList(list, pkValue, pk, childName, parentIdName));
+                }
+            }
+            return result;
+        }
+
+        public List<T> GetTreeChildList(List<T> alllist, object pkValue, string pkName, string childName, string parentIdName)
+        {
+            var result = alllist.Where(it =>
+            {
+
+                var value = it.GetType().GetProperty(parentIdName).GetValue(it);
+                return value.ObjToString() == pkValue.ObjToString();
+
+            }).ToList();
+            if (result != null && result.Count > 0)
+            {
+                foreach (var item in result)
+                {
+                    var itemPkValue = item.GetType().GetProperty(pkName).GetValue(item);
+                    item.GetType().GetProperty(childName).SetValue(item, GetTreeChildList(alllist, itemPkValue, pkName, childName, parentIdName));
+                }
+            }
+            return result;
+        }
+
         private void _CountEnd(MappingTableList expMapping)
         {
             RestoreMapping();
@@ -1467,7 +1593,7 @@ namespace SqlSugar
                     {
                        new ConditionalModel()
                       {
-                           FieldName=whereCol.DbColumnName,
+                           FieldName=this.SqlBuilder.GetTranslationColumnName(whereCol.DbColumnName),
                            ConditionalType= ConditionalType.In,
                            FieldValue=string.Join(",",inValues.Distinct())
                       }
@@ -1880,7 +2006,27 @@ namespace SqlSugar
         protected void CopyQueryBuilder(QueryBuilder asyncQueryableBuilder)
         {
             var pars = new List<SugarParameter>();
-            pars.AddRange(this.QueryBuilder.Parameters);
+            if (this.QueryBuilder.Parameters != null)
+            {
+                pars=this.QueryBuilder.Parameters.Select(it=>new SugarParameter(it.ParameterName,it.Value) {
+                       DbType=it.DbType,
+                       Value=it.Value,
+                       ParameterName=it.ParameterName,
+                       Direction=it.Direction,
+                       IsArray=it.IsArray,
+                       IsJson=it.IsJson,
+                       IsNullable=it.IsNullable,
+                       IsRefCursor=it.IsRefCursor,
+                       Size=it.Size,
+                       SourceColumn=it.SourceColumn,
+                       SourceColumnNullMapping=it.SourceColumnNullMapping,
+                       SourceVersion=it.SourceVersion,
+                       TempDate=it.TempDate,
+                       TypeName=it.TypeName,
+                       UdtTypeName=it.UdtTypeName,
+                       _Size=it._Size
+                }).ToList();
+            }
             asyncQueryableBuilder.Take = this.QueryBuilder.Take;
             asyncQueryableBuilder.Skip = this.QueryBuilder.Skip;
             asyncQueryableBuilder.SelectValue = this.QueryBuilder.SelectValue;

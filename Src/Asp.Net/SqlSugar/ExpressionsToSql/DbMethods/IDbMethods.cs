@@ -22,6 +22,7 @@ namespace SqlSugar
         string ContainsArray(MethodCallExpressionModel model);
         string ContainsArrayUseSqlParameters(MethodCallExpressionModel model);
         string Equals(MethodCallExpressionModel model);
+        string EqualsNull(MethodCallExpressionModel model);
         string DateIsSameDay(MethodCallExpressionModel model);
         string DateIsSameByType(MethodCallExpressionModel model);
         string DateAddByType(MethodCallExpressionModel model);
@@ -34,12 +35,14 @@ namespace SqlSugar
         string ToInt32(MethodCallExpressionModel model);
         string ToInt64(MethodCallExpressionModel model);
         string ToString(MethodCallExpressionModel model);
+        string ToVarchar(MethodCallExpressionModel model); 
         string ToGuid(MethodCallExpressionModel model);
         string ToDouble(MethodCallExpressionModel model);
         string ToBool(MethodCallExpressionModel model);
         string CaseWhen(List<KeyValuePair<string,string>> sqls);
         string Substring(MethodCallExpressionModel model);
         string ToDate(MethodCallExpressionModel model);
+        string ToDateShort(MethodCallExpressionModel model);
         string ToTime(MethodCallExpressionModel model);
         string ToDecimal(MethodCallExpressionModel model);
         string Length(MethodCallExpressionModel model);
@@ -63,5 +66,7 @@ namespace SqlSugar
         string GetDate();
         string GetRandom();
         string CharIndex(MethodCallExpressionModel model);
+        string BitwiseAnd(MethodCallExpressionModel model);
+        string BitwiseInclusiveOR(MethodCallExpressionModel model);
     }
 }

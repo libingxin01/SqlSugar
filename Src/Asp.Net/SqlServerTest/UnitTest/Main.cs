@@ -31,16 +31,18 @@ namespace OrmTest
         }
         public static void Init()
         {
+            Insert();
             Queue();
             CodeFirst();
             Updateable();
             Json();
             Ado();
             Queryable();
+            Queryable2();
             QueryableAsync();
-            Thread();
-            Thread2();
-            Thread3();
+            //Thread();
+            //Thread2();
+            //Thread3();
         }
     }
 }
