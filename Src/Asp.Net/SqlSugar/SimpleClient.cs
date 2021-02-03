@@ -30,7 +30,10 @@ namespace SqlSugar
         {
             this.Context = context;
         }
-
+        public SimpleClient<ChangeType> Change<ChangeType>() where ChangeType : class, new()
+        {
+            return this.Context.GetSimpleClient<ChangeType>();
+        }
         public ISugarQueryable<T> AsQueryable()
         {
             return Context.Queryable<T>();
@@ -128,6 +131,10 @@ namespace SqlSugar
         public virtual int InsertReturnIdentity(T insertObj)
         {
             return this.Context.Insertable(insertObj).ExecuteReturnIdentity();
+        }
+        public virtual long InsertReturnBigIdentity(T insertObj)
+        {
+            return this.Context.Insertable(insertObj).ExecuteReturnBigIdentity();
         }
         public virtual bool InsertRange(T[] insertObjs)
         {
@@ -234,6 +241,10 @@ namespace SqlSugar
         public virtual Task<int> InsertReturnIdentityAsync(T insertObj)
         {
             return this.Context.Insertable(insertObj).ExecuteReturnIdentityAsync();
+        }
+        public virtual Task<long> InsertReturnBigIdentityAsync(T insertObj)
+        {
+            return this.Context.Insertable(insertObj).ExecuteReturnBigIdentityAsync();
         }
         public virtual async Task<bool> InsertRangeAsync(T[] insertObjs)
         {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Dynamic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -337,6 +338,11 @@ namespace SqlSugar
         #endregion
 
         #region Saveable
+
+        public IStorageable<T> Storageable<T>(List<T> dataList) where T : class, new()
+        {
+            return this.Context.Storageable(dataList);
+        }
         public ISaveable<T> Saveable<T>(List<T> saveObjects) where T : class, new()
         {
             return this.Context.Saveable<T>(saveObjects);
@@ -543,7 +549,44 @@ namespace SqlSugar
         #endregion
 
         #region TenantManager
-        public void ChangeDatabase(string configId)
+        public void AddConnection(ConnectionConfig connection)
+        {
+            Check.ArgumentNullException(connection, "AddConnection.connection can't be null");
+            InitTenant();
+            var db = this._AllClients.FirstOrDefault(it => it.ConnectionConfig.ConfigId == connection.ConfigId);
+            if (db == null)
+            {
+                if (this._AllClients == null)
+                {
+                    this._AllClients = new List<SugarTenant>();
+                }
+                var provider = new SqlSugarProvider(connection);
+                if (connection.AopEvents != null)
+                {
+                    provider.Ado.IsEnableLogEvent = true;
+                }
+                this._AllClients.Add(new SugarTenant()
+                {
+                    ConnectionConfig = connection,
+                    Context = provider
+                });
+            }
+        }
+        public SqlSugarProvider GetConnection(dynamic configId)
+        {
+            InitTenant();
+            var db = this._AllClients.FirstOrDefault(it => it.ConnectionConfig.ConfigId == configId);
+            if (db == null)
+            {
+                Check.Exception(true, "ConfigId was not found {0}", configId);
+            }
+            if (db.Context == null)
+            {
+                db.Context = new SqlSugarProvider(db.ConnectionConfig);
+            }
+            return db.Context;
+        }
+        public void ChangeDatabase(dynamic configId)
         {
             var isLog = _Context.Ado.IsEnableLogEvent;
             Check.Exception(!_AllClients.Any(it => it.ConnectionConfig.ConfigId == configId), "ConfigId was not found {0}", configId);
@@ -573,7 +616,7 @@ namespace SqlSugar
         public void BeginTran()
         {
             _IsAllTran = true;
-            this.Context.Ado.BeginTran();
+            AllClientEach(it => it.Ado.BeginTran());
         }
         public void CommitTran()
         {
@@ -711,8 +754,17 @@ namespace SqlSugar
             }
             else
             {
-                IsSingleInstance = true;
-                result = NoSameThread();
+                StackTrace st = new StackTrace(true);
+                var methods = st.GetFrames();
+                var isAsync = UtilMethods.IsAnyAsyncMethod(methods);
+                if (isAsync)
+                {
+                    result = Synchronization();
+                }
+                else
+                {
+                    result = NoSameThread();
+                }
             }
             if (result.Root == null)
             {
@@ -747,6 +799,18 @@ namespace SqlSugar
                 {
                     return result;
                 }
+            }
+        }
+        private void InitTenant()
+        {
+            if (this._AllClients == null)
+            {
+                this._AllClients = new List<SugarTenant>();
+                this._AllClients.Add(new SugarTenant()
+                {
+                    ConnectionConfig = this.CurrentConnectionConfig,
+                    Context = this.Context
+                });
             }
         }
 
@@ -891,6 +955,11 @@ namespace SqlSugar
         }
         private void AllClientEach(Action<ISqlSugarClient> action)
         {
+            if (this._AllClients == null)
+            {
+                this._AllClients = new List<SugarTenant>();
+                this._AllClients.Add(new SugarTenant() { ConnectionConfig=this.CurrentConnectionConfig, Context=this.Context });
+            }
             if (_AllClients.HasValue())
             {
                 foreach (var item in _AllClients.Where(it => it.Context.HasValue()))
@@ -910,20 +979,5 @@ namespace SqlSugar
             this.CurrentConnectionConfig = Tenant.ConnectionConfig;
         }
         #endregion
-
-        #region Obsolete
-        [Obsolete("Use GetSimpleClient<T>")]
-        public SimpleClient GetSimpleClient()
-        {
-            return this.Context.GetSimpleClient();
-        }
-        [Obsolete("Use EntityMaintenance")]
-        public EntityMaintenance EntityProvider { get { return this.Context.EntityProvider; } set { this.Context.EntityProvider = value; } }
-        [Obsolete("Use Utilities")]
-        public IContextMethods RewritableMethods { get { return this.Context.RewritableMethods; } set { this.Context.RewritableMethods = value; } }
-        [Obsolete("Use GetSimpleClient")]
-        public SimpleClient SimpleClient { get { return this.Context.SimpleClient; } }
-        #endregion
-
     }
 }

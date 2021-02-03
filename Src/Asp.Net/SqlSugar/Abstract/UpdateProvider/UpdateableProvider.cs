@@ -53,6 +53,10 @@ namespace SqlSugar
         public virtual int ExecuteCommand()
         {
             string sql = _ExecuteCommand();
+            if (string.IsNullOrEmpty(sql))
+            {
+                return 0;
+            }
             var result = this.Ado.ExecuteCommand(sql, UpdateBuilder.Parameters == null ? null : UpdateBuilder.Parameters.ToArray());
             After(sql);
             return result;
@@ -64,6 +68,10 @@ namespace SqlSugar
         public async Task<int> ExecuteCommandAsync()
         {
             string sql = _ExecuteCommand();
+            if (string.IsNullOrEmpty(sql))
+            {
+                return 0;
+            }
             var result = await this.Ado.ExecuteCommandAsync(sql, UpdateBuilder.Parameters == null ? null : UpdateBuilder.Parameters.ToArray());
             After(sql);
             return result;
@@ -315,68 +323,7 @@ namespace SqlSugar
             return this;
         }
 
-
-
-
-        #region delete obj
-        [Obsolete]
-        public IUpdateable<T> UpdateColumns(Expression<Func<T, bool>> columns)
-        {
-            return this.SetColumns(columns);
-        }
-        [Obsolete]
-        public IUpdateable<T> UpdateColumns(Expression<Func<T, T>> columns)
-        {
-            return this.SetColumns(columns);
-        }
-        [Obsolete]
-        public IUpdateable<T> UpdateColumnsIF(bool isUpdateColumns, Expression<Func<T, T>> columns)
-        {
-            return this.SetColumnsIF(isUpdateColumns, columns);
-        }
-        [Obsolete]
-        public IUpdateable<T> UpdateColumnsIF(bool isUpdateColumns, Expression<Func<T, bool>> columns)
-        {
-            return this.SetColumnsIF(isUpdateColumns, columns);
-        }
-        [Obsolete]
-        public IUpdateable<T> UpdateColumnsIF(bool isUpdateColumns, Func<string, bool> updateColumMethod)
-        {
-            if (isUpdateColumns)
-                UpdateColumns(updateColumMethod);
-            return this;
-        }
-        [Obsolete]
-        public IUpdateable<T> UpdateColumns(Func<string, bool> updateColumMethod)
-        {
-            List<string> primaryKeys = GetPrimaryKeys();
-            foreach (var item in this.UpdateBuilder.DbColumnInfoList)
-            {
-                var mappingInfo = primaryKeys.SingleOrDefault(i => item.DbColumnName.Equals(i, StringComparison.CurrentCultureIgnoreCase));
-                if (mappingInfo != null && mappingInfo.Any())
-                {
-                    item.IsPrimarykey = true;
-                }
-            }
-            this.UpdateBuilder.DbColumnInfoList = this.UpdateBuilder.DbColumnInfoList.Where(it => updateColumMethod(it.PropertyName) || it.IsPrimarykey || it.IsIdentity).ToList();
-            return this;
-        }
-        [Obsolete]
-        public IUpdateable<T> IgnoreColumns(Func<string, bool> ignoreColumMethod)
-        {
-            this.UpdateBuilder.DbColumnInfoList = this.UpdateBuilder.DbColumnInfoList.Where(it => !ignoreColumMethod(it.PropertyName)).ToList();
-            return this;
-        }
-        [Obsolete("Use IUpdateable<T> IgnoreColumns(bool ignoreAllNullColumns, bool isOffIdentity = false);")]
-        public IUpdateable<T> Where(bool isUpdateNull, bool IsOffIdentity = false)
-        {
-            UpdateBuilder.IsOffIdentity = IsOffIdentity;
-            if (this.UpdateBuilder.LambdaExpressions == null)
-                this.UpdateBuilder.LambdaExpressions = InstanceFactory.GetLambdaExpressions(this.Context.CurrentConnectionConfig);
-            this.UpdateBuilder.IsNoUpdateNull = isUpdateNull;
-            return this;
-        }
-        #endregion
+ 
 
         #region Helper
         private void AppendSets()
@@ -421,7 +368,7 @@ namespace SqlSugar
                     this.UpdateBuilder.TableName = mappingInfo.DbTableName;
                 }
             }
-            Check.Exception(UpdateObjs == null || UpdateObjs.Count() == 0, "UpdateObjs is null");
+            //Check.Exception(UpdateObjs == null || UpdateObjs.Count() == 0, "UpdateObjs is null");
             int i = 0;
             foreach (var item in UpdateObjs)
             {
@@ -486,14 +433,15 @@ namespace SqlSugar
                     PropertyType = UtilMethods.GetUnderType(column.PropertyInfo),
                     TableId = i
                 };
-                if (columnInfo.PropertyType.IsEnum())
+                if (columnInfo.PropertyType.IsEnum()&& columnInfo.Value!=null)
                 {
                     columnInfo.Value = Convert.ToInt64(columnInfo.Value);
                 }
                 if (column.IsJson)
                 {
                     columnInfo.IsJson = true;
-                    columnInfo.Value = this.Context.Utilities.SerializeObject(columnInfo.Value);
+                    if (columnInfo.Value != null)
+                        columnInfo.Value = this.Context.Utilities.SerializeObject(columnInfo.Value);
                 }
                 if (column.IsArray)
                 {
@@ -511,11 +459,16 @@ namespace SqlSugar
 
         private void PreToSql()
         {
+
             UpdateBuilder.PrimaryKeys = GetPrimaryKeys();
             if (this.IsWhereColumns)
             {
                 foreach (var pkName in UpdateBuilder.PrimaryKeys)
                 {
+                    if (WhereColumnList != null&& WhereColumnList.Count()>0)
+                    {
+                        continue;
+                    }
                     var isContains = this.UpdateBuilder.DbColumnInfoList.Select(it => it.DbColumnName.ToLower()).Contains(pkName.ToLower());
                     Check.Exception(isContains == false, "Use UpdateColumns().WhereColumn() ,UpdateColumns need {0}", pkName);
                 }
@@ -745,7 +698,7 @@ namespace SqlSugar
                         DiffLogColumnInfo addItem = new DiffLogColumnInfo();
                         addItem.Value = row[col.ColumnName];
                         addItem.ColumnName = col.ColumnName;
-                        addItem.ColumnDescription = this.EntityInfo.Columns.Where(it=>it.DbColumnName!=null).First(it => it.DbColumnName.Equals(col.ColumnName, StringComparison.CurrentCultureIgnoreCase)).ColumnDescription;
+                        addItem.ColumnDescription = this.EntityInfo.Columns.Where(it => it.DbColumnName != null).First(it => it.DbColumnName.Equals(col.ColumnName, StringComparison.CurrentCultureIgnoreCase)).ColumnDescription;
                         item.Columns.Add(addItem);
                     }
                     result.Add(item);

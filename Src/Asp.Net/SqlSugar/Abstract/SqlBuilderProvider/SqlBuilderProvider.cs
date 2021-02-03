@@ -31,7 +31,7 @@ namespace SqlSugar
         public virtual string GetTranslationTableName(string name)
         {
             Check.ArgumentNullException(name, string.Format(ErrorMessage.ObjNotExist, "Table Name"));
-            if (name.IsContainsIn("(", ")", SqlTranslationLeft)&&name!= "Dictionary`2")
+            if (!name.Contains("<>f__AnonymousType") &&name.IsContainsIn("(", ")", SqlTranslationLeft)&&name!= "Dictionary`2")
             {
                 return name;
             }
@@ -198,7 +198,7 @@ namespace SqlSugar
                             parameters.Add(new SugarParameter(parameterName, item.FieldValue));
                             break;
                         case ConditionalType.IsNullOrEmpty:
-                            builder.AppendFormat("{0} ({1}) OR ({2}) ", type, item.FieldName.ToSqlFilter() + " IS NULL ", item.FieldName.ToSqlFilter() + " = '' ");
+                            builder.AppendFormat(" {0} (({1}) OR ({2})) ", type, item.FieldName.ToSqlFilter() + " IS NULL ", item.FieldName.ToSqlFilter() + " = '' ");
                             parameters.Add(new SugarParameter(parameterName, item.FieldValue));
                             break;
                         case ConditionalType.IsNot:

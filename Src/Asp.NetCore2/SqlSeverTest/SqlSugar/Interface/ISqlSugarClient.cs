@@ -116,6 +116,7 @@ namespace SqlSugar
         #endregion
 
         #region Saveable
+        IStorageable<T> Storageable<T>(List<T> dataList) where T : class, new();
         ISaveable<T> Saveable<T>(List<T> saveObjects) where T : class, new();
         ISaveable<T> Saveable<T>(T saveObject) where T : class, new();
         #endregion
@@ -159,15 +160,6 @@ namespace SqlSugar
         IUpdateable<T> Updateable<T>(List<T> UpdateObjs) where T : class, new();
         IUpdateable<T> Updateable<T>(T UpdateObj) where T : class, new();
         IUpdateable<T> Updateable<T>(T[] UpdateObjs) where T : class, new(); 
-        #endregion
-
-        #region Obsolete
-        [Obsolete("use Utilities")]
-        IContextMethods RewritableMethods { get; set; }
-        [Obsolete("use GetSimpleClient()")]
-        SimpleClient SimpleClient { get; }
-        [Obsolete("use EntityMaintenance")]
-        EntityMaintenance EntityProvider { get; set; }
         #endregion
     }
 }

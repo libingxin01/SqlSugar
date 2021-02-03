@@ -674,7 +674,11 @@ namespace SqlSugar
         }
         public virtual IUpdateable<T> Updateable<T>(List<T> UpdateObjs) where T : class, new()
         {
-            Check.ArgumentNullException(UpdateObjs, "Updateable.UpdateObjs can't be null");
+            //Check.ArgumentNullException(UpdateObjs, "Updateable.UpdateObjs can't be null");
+            if (UpdateObjs == null)
+            {
+                UpdateObjs = new List<T>();
+            }
             return Updateable(UpdateObjs.ToArray());
         }
         public virtual IUpdateable<T> Updateable<T>(T UpdateObj) where T : class, new()
@@ -735,6 +739,14 @@ namespace SqlSugar
         {
             return new SaveableProvider<T>(this, saveObject);
         }
+        public IStorageable<T> Storageable<T>(List<T> dataList) where T : class, new()
+        {
+            this.InitMappingInfo<T>();
+            var sqlBuilder = InstanceFactory.GetSqlbuilder(this.Context.CurrentConnectionConfig);
+            var result= new Storageable<T>(dataList,this);
+            result.Builder = sqlBuilder;
+            return result;
+        }
         #endregion
 
         #region DbFirst
@@ -779,12 +791,6 @@ namespace SqlSugar
         #endregion
 
         #region Entity Maintenance
-        [Obsolete("Use SqlSugarClient.EntityMaintenance")]
-        public virtual EntityMaintenance EntityProvider
-        {
-            get { return this.Context.EntityMaintenance; }
-            set { this.Context.EntityMaintenance = value; }
-        }
         public virtual EntityMaintenance EntityMaintenance
         {
             get
@@ -831,12 +837,12 @@ namespace SqlSugar
         {
             return new SimpleClient<T>(this);
         }
-        public virtual SimpleClient GetSimpleClient()
-        {
-            if (this._SimpleClient == null)
-                this._SimpleClient = new SimpleClient(this);
-            return this._SimpleClient;
-        }
+        //public virtual SimpleClient GetSimpleClient()
+        //{
+        //    if (this._SimpleClient == null)
+        //        this._SimpleClient = new SimpleClient(this);
+        //    return this._SimpleClient;
+        //}
         #endregion
 
         #region Dispose OR Close

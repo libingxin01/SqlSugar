@@ -36,16 +36,8 @@ namespace SqlSugar
         IInsertable<T> RemoveDataCache();
         KeyValuePair<string, List<SugarParameter>> ToSql();
         SqlServerBlueCopy UseSqlServer();
+        MySqlBlueCopy<T> UseMySql();
         void AddQueue();
 
-        #region Obsolete
-        [Obsolete("use IgnoreColumns(string[] columns")]
-
-        IInsertable<T> IgnoreColumns(Func<string, bool> ignoreColumMethod);
-        [Obsolete("use InsertColumns(string[] columns")]
-        IInsertable<T> InsertColumns(Func<string, bool> insertColumMethod); 
-        [Obsolete("use IgnoreColumns(bool isNoInsertNull, bool isOffIdentity = false)")]
-        IInsertable<T> Where(bool ignoreNullColumn, bool isOffIdentity = false);
-        #endregion
     }
 }
